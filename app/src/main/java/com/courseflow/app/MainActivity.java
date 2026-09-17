@@ -132,7 +132,7 @@ public final class MainActivity extends Activity implements ScheduleCanvasView.L
         card.addView(icon, new LinearLayout.LayoutParams(Ui.dp(this, 92), Ui.dp(this, 92)));
 
         TextView message = Ui.text(this,
-                "本产品免费无广\n支持天秤喵, 支持天秤谢谢喵🥳🥳🥳.\n\nv3.2 更新：新增自定义时间轴",
+                "本产品免费无广\n支持天秤喵, 支持天秤谢谢喵🥳🥳🥳.\n\nv4.0 更新：修复更新入口，支持强制更新",
                 15, TEXT, true);
         message.setGravity(Gravity.CENTER);
         message.setLineSpacing(Ui.dp(this, 5), 1f);
@@ -826,6 +826,9 @@ public final class MainActivity extends Activity implements ScheduleCanvasView.L
         LinearLayout page = new LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
         page.setPadding(Ui.dp(this, 16), Ui.dp(this, 16), Ui.dp(this, 16), Ui.dp(this, 28));
+        page.addView(sectionTitle("版本与更新"));
+        page.addView(settingCard("检查软件更新", updateManager == null ? "当前版本 4.0.0" : updateManager.statusText(), "›",
+                view -> { if (updateManager != null) updateManager.showOptions(); }));
         page.addView(sectionTitle("课表数据"));
         page.addView(settingCard("导入 Excel 或图片", "Excel 自动识别班级和周次；课表照片需核对", "›", view -> showImportMenu()));
         page.addView(settingCard("当前班级", data.className, "", null));
@@ -839,13 +842,11 @@ public final class MainActivity extends Activity implements ScheduleCanvasView.L
         page.addView(settingCard("主动导入图片", "课表照片可生成课程；普通截图进入待整理", "›", view -> showImageImportMenu()));
         page.addView(settingCard("隐私与本地处理", "暂时没钱开服务器：图片和文字不会上传，识别全部在本机", "", null));
         page.addView(sectionTitle("使用与维护"));
-        page.addView(settingCard("软件更新", updateManager == null ? "当前版本" : updateManager.statusText(), "›",
-                view -> { if (updateManager != null) updateManager.showOptions(); }));
         page.addView(settingCard("课程管理", "查看、批量选择和删除全部课程", "›", view -> showPage(3)));
         page.addView(settingCard("课程冲突检查", "本周检测到 " + data.conflictCount(selectedWeek) + " 组重叠", "", null));
         page.addView(settingCard("清空全部数据", "删除所有课程、待办与导入记录", "›", view -> confirmReset()));
         page.addView(sectionTitle("关于"));
-        page.addView(settingCard("课表流", "版本 3.2.0 · 自定义时间轴", "", null));
+        page.addView(settingCard("课表流", "版本 4.0.0 · 即时与强制更新", "", null));
         scroller.addView(page);
         return scroller;
     }

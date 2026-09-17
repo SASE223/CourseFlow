@@ -40,9 +40,10 @@ public final class GitHubUpdateManager {
     private static final String PREFS = "courseflow_updates";
     private static final String KEY_AUTO = "auto_check";
     private static final String KEY_LAST_CHECK = "last_check";
+    private static final String KEY_LAST_CHECK_APP_VERSION = "last_check_app_version";
     private static final String KEY_DOWNLOAD_ID = "download_id";
     private static final String KEY_DOWNLOAD_DIGEST = "download_digest";
-    private static final long CHECK_INTERVAL = 12L * 60L * 60L * 1000L;
+    private static final long CHECK_INTERVAL = 5L * 60L * 1000L;
 
     private final Activity activity;
     private final SharedPreferences preferences;
@@ -65,12 +66,19 @@ public final class GitHubUpdateManager {
     }
 
     public void start() {
+        String lastCheckedAppVersion = preferences.getString(KEY_LAST_CHECK_APP_VERSION, "");
+        if (!BuildConfig.VERSION_NAME.equals(lastCheckedAppVersion)) {
+            preferences.edit()
+                    .remove(KEY_LAST_CHECK)
+                    .putString(KEY_LAST_CHECK_APP_VERSION, BuildConfig.VERSION_NAME)
+                    .apply();
+        }
         if (!receiverRegistered) {
             IntentFilter filter = new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE);
             ContextCompat.registerReceiver(activity, downloadReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED);
             receiverRegistered = true;
         }
-        handler.postDelayed(() -> check(false), 4500L);
+        handler.postDelayed(() -> check(false), 2100L);
     }
 
     public void destroy() {
@@ -87,7 +95,7 @@ public final class GitHubUpdateManager {
     }
 
     public String statusText() {
-        return (preferences.getBoolean(KEY_AUTO, true) ? "自动检查已开启" : "自动检查已关闭")
+        return (preferences.getBoolean(KEY_AUTO, true) ? "自动提醒已开启" : "仅检查强制更新")
                 + " · 当前 " + BuildConfig.VERSION_NAME;
     }
 
@@ -95,7 +103,7 @@ public final class GitHubUpdateManager {
         boolean auto = preferences.getBoolean(KEY_AUTO, true);
         new AlertDialog.Builder(activity)
                 .setTitle("软件更新")
-                .setMessage("只连接 GitHub 检查和下载版本，不会上传课表、图片或识别文字。")
+                .setMessage("启动后立即检查 GitHub。关闭自动提醒后，仍会检查不可跳过的强制更新；不会上传课表、图片或识别文字。")
                 .setItems(new String[]{"立即检查更新", auto ? "关闭自动检查" : "开启自动检查", "打开 GitHub Releases"},
                         (dialog, which) -> {
                             if (which == 0) check(true);
@@ -113,8 +121,8 @@ public final class GitHubUpdateManager {
             if (manual) Toast.makeText(activity, "正在检查更新…", Toast.LENGTH_SHORT).show();
             return;
         }
+        final boolean autoEnabled = preferences.getBoolean(KEY_AUTO, true);
         if (!manual) {
-            if (!preferences.getBoolean(KEY_AUTO, true)) return;
             long last = preferences.getLong(KEY_LAST_CHECK, 0L);
             if (System.currentTimeMillis() - last < CHECK_INTERVAL) return;
         }
@@ -126,7 +134,9 @@ public final class GitHubUpdateManager {
                 preferences.edit().putLong(KEY_LAST_CHECK, System.currentTimeMillis()).apply();
                 activity.runOnUiThread(() -> {
                     checking = false;
-                    if (isNewer(release.version, BuildConfig.VERSION_NAME)) showUpdate(release);
+                    boolean newer = isNewer(release.version, BuildConfig.VERSION_NAME);
+                    boolean mandatory = newer && isMandatory(release, BuildConfig.VERSION_NAME);
+                    if (newer && (manual || autoEnabled || mandatory)) showUpdate(release, mandatory);
                     else if (manual) new AlertDialog.Builder(activity)
                             .setTitle("已是最新版本")
                             .setMessage("当前版本：" + BuildConfig.VERSION_NAME)
@@ -169,6 +179,8 @@ public final class GitHubUpdateManager {
         info.version = normalizeVersion(root.optString("tag_name", ""));
         info.title = root.optString("name", "v" + info.version);
         info.notes = root.optString("body", "本次更新未填写说明。");
+        info.force = containsDirective(info.notes, "force_update");
+        info.minSupportedVersion = directiveValue(info.notes, "min_supported_version");
         info.pageUrl = root.optString("html_url", RELEASES_URL);
         JSONArray assets = root.optJSONArray("assets");
         if (assets != null) {
@@ -188,20 +200,26 @@ public final class GitHubUpdateManager {
         return info;
     }
 
-    private void showUpdate(ReleaseInfo release) {
+    private void showUpdate(ReleaseInfo release, boolean mandatory) {
         String sizeText = release.size > 0 ? String.format(Locale.CHINA, "%.1f MB", release.size / 1024d / 1024d) : "未知";
-        String message = "当前版本：" + BuildConfig.VERSION_NAME + "\n最新版本：" + release.version
+        String message = (mandatory ? "这是必须安装的兼容性更新，更新前无法继续使用。\n\n" : "")
+                + "当前版本：" + BuildConfig.VERSION_NAME + "\n最新版本：" + release.version
                 + "\n安装包：" + sizeText + "\n\n" + trimNotes(release.notes);
-        AlertDialog.Builder dialog = new AlertDialog.Builder(activity)
-                .setTitle("发现新版本 · " + release.title)
+        AlertDialog.Builder builder = new AlertDialog.Builder(activity)
+                .setTitle((mandatory ? "必须更新 · " : "发现新版本 · ") + release.title)
                 .setMessage(message)
-                .setNegativeButton("以后再说", null)
-                .setNeutralButton("查看发布页", (d, which) -> openBrowser(release.pageUrl));
-        if (release.downloadUrl.isEmpty()) {
-            dialog.setPositiveButton("打开发布页", (d, which) -> openBrowser(release.pageUrl));
-        } else {
-            dialog.setPositiveButton("下载更新", (d, which) -> download(release));
+                .setCancelable(!mandatory);
+        if (!mandatory) {
+            builder.setNegativeButton("以后再说", null)
+                    .setNeutralButton("查看发布页", (d, which) -> openBrowser(release.pageUrl));
         }
+        if (release.downloadUrl.isEmpty()) {
+            builder.setPositiveButton("打开发布页", (d, which) -> openBrowser(release.pageUrl));
+        } else {
+            builder.setPositiveButton(mandatory ? "下载并更新" : "下载更新", (d, which) -> download(release));
+        }
+        AlertDialog dialog = builder.create();
+        dialog.setCanceledOnTouchOutside(!mandatory);
         dialog.show();
     }
 
@@ -311,6 +329,32 @@ public final class GitHubUpdateManager {
         catch (Exception ignored) { Toast.makeText(activity, url, Toast.LENGTH_LONG).show(); }
     }
 
+    private static boolean isMandatory(ReleaseInfo release, String current) {
+        if (release.force) return true;
+        if (!release.minSupportedVersion.isEmpty() && isNewer(release.minSupportedVersion, current)) return true;
+        int[] latest = versionParts(release.version);
+        int[] installed = versionParts(current);
+        return latest.length > 0 && installed.length > 0 && latest[0] > installed[0];
+    }
+
+    private static boolean containsDirective(String notes, String key) {
+        String normalized = notes == null ? "" : notes.toLowerCase(Locale.ROOT).replace(" ", "");
+        return normalized.contains(key.toLowerCase(Locale.ROOT) + "=true")
+                || normalized.contains("[" + key.toLowerCase(Locale.ROOT) + "]");
+    }
+
+    private static String directiveValue(String notes, String key) {
+        if (notes == null) return "";
+        for (String line : notes.split("\\r?\\n")) {
+            String compact = line.trim().replace("<!--", "").replace("-->", "").trim();
+            int separator = Math.max(compact.indexOf('='), compact.indexOf(':'));
+            if (separator <= 0) continue;
+            String name = compact.substring(0, separator).trim();
+            if (name.equalsIgnoreCase(key)) return normalizeVersion(compact.substring(separator + 1).trim());
+        }
+        return "";
+    }
+
     private static boolean isNewer(String latest, String current) {
         int[] left = versionParts(latest);
         int[] right = versionParts(current);
@@ -341,7 +385,15 @@ public final class GitHubUpdateManager {
 
     private static String trimNotes(String notes) {
         if (notes == null || notes.trim().isEmpty()) return "本次更新未填写说明。";
-        String value = notes.trim();
+        StringBuilder cleaned = new StringBuilder();
+        for (String line : notes.trim().split("\\r?\\n")) {
+            String compact = line.toLowerCase(Locale.ROOT).replace(" ", "");
+            if (compact.contains("force_update") || compact.contains("min_supported_version")) continue;
+            if (cleaned.length() > 0) cleaned.append('\n');
+            cleaned.append(line);
+        }
+        String value = cleaned.toString().trim();
+        if (value.isEmpty()) value = "这是维护兼容性与稳定性的必要更新。";
         return value.length() <= 1200 ? value : value.substring(0, 1200) + "…";
     }
 
@@ -358,6 +410,8 @@ public final class GitHubUpdateManager {
         String downloadUrl = "";
         String fileName = "";
         String digest = "";
+        String minSupportedVersion = "";
+        boolean force;
         long size;
     }
 }
