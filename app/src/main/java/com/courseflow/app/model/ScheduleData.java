@@ -13,6 +13,7 @@ public final class ScheduleData {
     public String campus = "白云校区";
     public String sourceFile = "";
     public long semesterStartMillis = defaultSemesterStart();
+    public final ArrayList<PeriodTime> periods = defaultPeriods();
     public final ArrayList<Course> courses = new ArrayList<>();
     public final ArrayList<TodoItem> todos = new ArrayList<>();
     public final ArrayList<InboxItem> inboxItems = new ArrayList<>();
@@ -25,6 +26,9 @@ public final class ScheduleData {
         object.put("campus", campus);
         object.put("sourceFile", sourceFile);
         object.put("semesterStart", semesterStartMillis);
+        JSONArray periodValues = new JSONArray();
+        for (PeriodTime period : periods) periodValues.put(period.toJson());
+        object.put("periods", periodValues);
         JSONArray courseValues = new JSONArray();
         for (Course course : courses) courseValues.put(course.toJson());
         object.put("courses", courseValues);
@@ -47,6 +51,15 @@ public final class ScheduleData {
         data.campus = object.optString("campus", "白云校区");
         data.sourceFile = object.optString("sourceFile", "");
         data.semesterStartMillis = object.optLong("semesterStart", defaultSemesterStart());
+        JSONArray periodValues = object.optJSONArray("periods");
+        if (periodValues != null && periodValues.length() > 0) {
+            data.periods.clear();
+            for (int i = 0; i < periodValues.length() && i < 24; i++) {
+                JSONObject item = periodValues.optJSONObject(i);
+                if (item != null) data.periods.add(PeriodTime.fromJson(item));
+            }
+            if (data.periods.isEmpty()) data.periods.addAll(defaultPeriods());
+        }
         data.courses.clear();
         JSONArray courseValues = object.optJSONArray("courses");
         if (courseValues != null) {
@@ -106,6 +119,16 @@ public final class ScheduleData {
         return data;
     }
 
+    public static ArrayList<PeriodTime> defaultPeriods() {
+        String[] starts = {"08:30", "09:15", "10:05", "10:50", "13:30", "14:15",
+                "15:05", "15:50", "18:40", "19:25", "20:10", "20:55"};
+        String[] ends = {"09:10", "09:55", "10:45", "11:30", "14:10", "14:55",
+                "15:45", "16:30", "19:20", "20:05", "20:50", "21:35"};
+        ArrayList<PeriodTime> values = new ArrayList<>();
+        for (int i = 0; i < starts.length; i++) values.add(new PeriodTime(starts[i], ends[i]));
+        return values;
+    }
+
     private static long defaultSemesterStart() {
         Calendar calendar = Calendar.getInstance();
         calendar.set(2026, Calendar.SEPTEMBER, 7, 0, 0, 0);
@@ -113,3 +136,5 @@ public final class ScheduleData {
         return calendar.getTimeInMillis();
     }
 }
+
+

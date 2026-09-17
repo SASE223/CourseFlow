@@ -42,8 +42,8 @@ public final class InboxItem {
         item.createdAt = object.optLong("createdAt", System.currentTimeMillis());
         item.suggestedWeek = clamp(object.optInt("suggestedWeek", 1), 1, 30);
         item.suggestedDay = clamp(object.optInt("suggestedDay", 1), 1, 7);
-        item.suggestedStartPeriod = clamp(object.optInt("suggestedStart", 1), 1, 12);
-        item.suggestedEndPeriod = clamp(object.optInt("suggestedEnd", item.suggestedStartPeriod), item.suggestedStartPeriod, 12);
+        item.suggestedStartPeriod = clamp(object.optInt("suggestedStart", 1), 1, 24);
+        item.suggestedEndPeriod = clamp(object.optInt("suggestedEnd", item.suggestedStartPeriod), item.suggestedStartPeriod, 24);
         return item;
     }
 
@@ -51,3 +51,5 @@ public final class InboxItem {
         return Math.max(min, Math.min(max, value));
     }
 }
+
+

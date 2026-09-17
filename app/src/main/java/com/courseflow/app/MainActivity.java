@@ -53,6 +53,7 @@ import com.courseflow.app.model.ScheduleData;
 import com.courseflow.app.model.TodoItem;
 import com.courseflow.app.ui.ScheduleCanvasView;
 import com.courseflow.app.ui.Ui;
+import com.courseflow.app.ui.TimeAxisEditorDialog;
 import com.courseflow.app.update.GitHubUpdateManager;
 
 import java.io.InputStream;
@@ -131,7 +132,7 @@ public final class MainActivity extends Activity implements ScheduleCanvasView.L
         card.addView(icon, new LinearLayout.LayoutParams(Ui.dp(this, 92), Ui.dp(this, 92)));
 
         TextView message = Ui.text(this,
-                "本产品免费无广\n支持天秤喵, 支持天秤谢谢喵🥳🥳🥳.",
+                "本产品免费无广\n支持天秤喵, 支持天秤谢谢喵🥳🥳🥳.\n\nv3.2 更新：新增自定义时间轴",
                 15, TEXT, true);
         message.setGravity(Gravity.CENTER);
         message.setLineSpacing(Ui.dp(this, 5), 1f);
@@ -320,7 +321,7 @@ public final class MainActivity extends Activity implements ScheduleCanvasView.L
 
         View scheduleBoard = buildNativeScheduleBoard(data, selectedWeek);
         page.addView(scheduleBoard, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 62 + 12 * 74 + 16)));
+                ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 62 + data.periods.size() * 74 + 16)));
         return wrapSchedulePage(page);
     }
 
@@ -335,10 +336,7 @@ public final class MainActivity extends Activity implements ScheduleCanvasView.L
 
     private View buildNativeScheduleBoard(ScheduleData schedule, int week) {
         final String[] dayNames = {"周一", "周二", "周三", "周四", "周五", "周六", "周日"};
-        final String[] startTimes = {"08:30", "09:15", "10:05", "10:50", "13:30", "14:15",
-                "15:05", "15:50", "18:40", "19:25", "20:10", "20:55"};
-        final String[] endTimes = {"09:10", "09:55", "10:45", "11:30", "14:10", "14:55",
-                "15:45", "16:30", "19:20", "20:05", "20:50", "21:35"};
+        final int periodCount = Math.max(1, schedule.periods.size());
 
         FrameLayout board = new FrameLayout(this);
         board.setBackgroundColor(0xFFF7F9FC);
@@ -346,7 +344,7 @@ public final class MainActivity extends Activity implements ScheduleCanvasView.L
         int leftWidth = Ui.dp(this, 48);
         int topHeight = Ui.dp(this, 62);
         int rowHeight = Ui.dp(this, 74);
-        int boardHeight = topHeight + rowHeight * 12 + Ui.dp(this, 16);
+        int boardHeight = topHeight + rowHeight * periodCount + Ui.dp(this, 16);
         int columnWidth = Math.max(Ui.dp(this, 40), (screenWidth - leftWidth - Ui.dp(this, 4)) / 7);
 
         View headerBackground = new View(this);
@@ -370,7 +368,7 @@ public final class MainActivity extends Activity implements ScheduleCanvasView.L
         }
 
         int lineColor = 0xFFE3E9F1;
-        for (int row = 0; row <= 12; row++) {
+        for (int row = 0; row <= periodCount; row++) {
             View line = new View(this);
             line.setBackgroundColor(lineColor);
             FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
@@ -383,15 +381,15 @@ public final class MainActivity extends Activity implements ScheduleCanvasView.L
             View line = new View(this);
             line.setBackgroundColor(lineColor);
             FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
-                    Math.max(1, Ui.dp(this, 0.7f)), rowHeight * 12);
+                    Math.max(1, Ui.dp(this, 0.7f)), rowHeight * periodCount);
             params.leftMargin = leftWidth + column * columnWidth;
             params.topMargin = topHeight;
             board.addView(line, params);
         }
 
-        for (int period = 0; period < 12; period++) {
+        for (int period = 0; period < periodCount; period++) {
             TextView time = Ui.text(this,
-                    startTimes[period] + "\n" + (period + 1) + "\n" + endTimes[period],
+                    schedule.periods.get(period).start + "\n" + (period + 1) + "\n" + schedule.periods.get(period).end,
                     9, 0xFF687485, false);
             time.setGravity(Gravity.CENTER);
             FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(leftWidth, rowHeight);
@@ -400,7 +398,7 @@ public final class MainActivity extends Activity implements ScheduleCanvasView.L
         }
 
         for (int day = 1; day <= 7; day++) {
-            for (int period = 1; period <= 12; period++) {
+            for (int period = 1; period <= periodCount; period++) {
                 final int slotDay = day;
                 final int slotPeriod = period;
                 View slot = new View(this);
@@ -435,8 +433,8 @@ public final class MainActivity extends Activity implements ScheduleCanvasView.L
             ArrayList<Course> group = entry.getValue();
             Course course = group.get(0);
             int day = Math.max(1, Math.min(7, course.day));
-            int start = Math.max(1, Math.min(12, course.startPeriod));
-            int end = Math.max(start, Math.min(12, course.endPeriod));
+            int start = Math.max(1, Math.min(periodCount, course.startPeriod));
+            int end = Math.max(start, Math.min(periodCount, course.endPeriod));
             StringBuilder label = new StringBuilder(course.name);
             if (!course.teacher.isEmpty()) label.append("\n").append(course.teacher);
             if (!course.room.isEmpty()) label.append("\n").append(course.room);
@@ -466,8 +464,8 @@ public final class MainActivity extends Activity implements ScheduleCanvasView.L
         for (TodoItem todo : schedule.todos) {
             if (todo.completed || todo.week != week) continue;
             int day = Math.max(1, Math.min(7, todo.day));
-            int start = Math.max(1, Math.min(12, todo.startPeriod));
-            int end = Math.max(start, Math.min(12, todo.endPeriod));
+            int start = Math.max(1, Math.min(periodCount, todo.startPeriod));
+            int end = Math.max(start, Math.min(periodCount, todo.endPeriod));
             String label = "待办\n" + todo.title + (todo.note.isEmpty() ? "" : "\n" + todo.note);
             TextView card = Ui.text(this, label, 9.5f, Color.WHITE, true);
             card.setGravity(Gravity.CENTER);
@@ -833,6 +831,8 @@ public final class MainActivity extends Activity implements ScheduleCanvasView.L
         page.addView(settingCard("当前班级", data.className, "", null));
         page.addView(settingCard("学期第一周", formatDate(data.semesterStartMillis) + "（周一）", "›", view -> pickSemesterStart()));
         page.addView(settingCard("周次整体调整", "例如将 2-13 周整体调整为 3-14 周", "›", view -> showWeekShiftDialog()));
+        page.addView(settingCard("自定义时间轴", data.periods.size() + " 节 · 可调整每节开始与结束时间", "›",
+                view -> new TimeAxisEditorDialog(this, data, this::refreshAll).show()));
         if (!data.sourceFile.isEmpty()) page.addView(settingCard("数据来源", data.sourceFile, "", null));
         page.addView(sectionTitle("图片收件箱"));
         page.addView(settingCard("发现新图片", discoveryStatusText(), "›", view -> showDiscoverySettings()));
@@ -845,7 +845,7 @@ public final class MainActivity extends Activity implements ScheduleCanvasView.L
         page.addView(settingCard("课程冲突检查", "本周检测到 " + data.conflictCount(selectedWeek) + " 组重叠", "", null));
         page.addView(settingCard("清空全部数据", "删除所有课程、待办与导入记录", "›", view -> confirmReset()));
         page.addView(sectionTitle("关于"));
-        page.addView(settingCard("课表流", "版本 3.1.0 · GitHub 自动更新", "", null));
+        page.addView(settingCard("课表流", "版本 3.2.0 · 自定义时间轴", "", null));
         scroller.addView(page);
         return scroller;
     }
@@ -941,8 +941,7 @@ public final class MainActivity extends Activity implements ScheduleCanvasView.L
         EditText room = input(form, "上课地点", editing ? existing.room : "");
         Spinner day = spinner(form, "星期", new String[]{"周一", "周二", "周三", "周四", "周五", "周六", "周日"},
                 editing ? existing.day - 1 : Math.max(0, defaultDay - 1));
-        String[] periods = new String[12];
-        for (int i = 0; i < periods.length; i++) periods[i] = "第" + (i + 1) + "节";
+        String[] periods = periodLabels();
         Spinner start = spinner(form, "开始节次", periods,
                 editing ? existing.startPeriod - 1 : Math.max(0, defaultPeriod - 1));
         Spinner end = spinner(form, "结束节次", periods,
@@ -1002,8 +1001,7 @@ public final class MainActivity extends Activity implements ScheduleCanvasView.L
         Spinner day = spinner(form, "星期",
                 new String[]{"周一", "周二", "周三", "周四", "周五", "周六", "周日"},
                 item.suggestedDay - 1);
-        String[] periods = new String[12];
-        for (int i = 0; i < periods.length; i++) periods[i] = "第" + (i + 1) + "节";
+        String[] periods = periodLabels();
         Spinner start = spinner(form, "开始节次", periods, item.suggestedStartPeriod - 1);
         Spinner end = spinner(form, "结束节次", periods, item.suggestedEndPeriod - 1);
         TextView rawLabel = Ui.text(this, "图片识别原文", 12, MUTED, true);
@@ -1091,8 +1089,7 @@ public final class MainActivity extends Activity implements ScheduleCanvasView.L
         Spinner day = spinner(form, "星期",
                 new String[]{"周一", "周二", "周三", "周四", "周五", "周六", "周日"},
                 editing ? existing.day - 1 : Math.max(0, defaultDay - 1));
-        String[] periods = new String[12];
-        for (int i = 0; i < periods.length; i++) periods[i] = "第" + (i + 1) + "节";
+        String[] periods = periodLabels();
         Spinner start = spinner(form, "开始节次", periods,
                 editing ? existing.startPeriod - 1 : Math.max(0, defaultPeriod - 1));
         Spinner end = spinner(form, "结束节次", periods,
@@ -1186,6 +1183,7 @@ public final class MainActivity extends Activity implements ScheduleCanvasView.L
         final int touchSlop = ViewConfiguration.get(this).getScaledTouchSlop();
         final int originalColor = course != null ? course.color : todo.color;
         final float originalElevation = card.getElevation();
+        final int periodCount = Math.max(1, data.periods.size());
 
         card.setOnTouchListener((view, event) -> {
             if (event.getAction() == MotionEvent.ACTION_DOWN) {
@@ -1241,7 +1239,7 @@ public final class MainActivity extends Activity implements ScheduleCanvasView.L
                     int floatingTop = originalTop[0] + Math.round(dy);
                     day = Math.max(1, Math.min(7,
                             Math.round((floatingLeft - leftWidth - margin) / (float) columnWidth) + 1));
-                    start = Math.max(1, Math.min(12 - duration,
+                    start = Math.max(1, Math.min(periodCount - duration,
                             Math.round((floatingTop - topHeight - margin) / (float) rowHeight) + 1));
                     end = start + duration;
                 } else {
@@ -1249,7 +1247,7 @@ public final class MainActivity extends Activity implements ScheduleCanvasView.L
                     if (mode[0] < 0) {
                         start = Math.max(1, Math.min(originalEnd[0], originalStart[0] + delta));
                     } else {
-                        end = Math.max(originalStart[0], Math.min(12, originalEnd[0] + delta));
+                        end = Math.max(originalStart[0], Math.min(periodCount, originalEnd[0] + delta));
                     }
                 }
 
@@ -1417,6 +1415,15 @@ public final class MainActivity extends Activity implements ScheduleCanvasView.L
             }
         }));
         dialog.show();
+    }
+
+    private String[] periodLabels() {
+        int count = Math.max(1, data.periods.size());
+        String[] labels = new String[count];
+        for (int i = 0; i < count; i++) {
+            labels[i] = "第" + (i + 1) + "节  " + data.periods.get(i).start + "-" + data.periods.get(i).end;
+        }
+        return labels;
     }
 
     private EditText input(LinearLayout form, String label, String value) {
@@ -1693,6 +1700,8 @@ public final class MainActivity extends Activity implements ScheduleCanvasView.L
 
     private void replaceWithImported(ScheduleData imported) {
         imported.semesterStartMillis = data.semesterStartMillis;
+        imported.periods.clear();
+        data.periods.forEach(period -> imported.periods.add(period.copy()));
         imported.todos.addAll(data.todos);
         imported.inboxItems.addAll(data.inboxItems);
         data = imported;
@@ -1996,6 +2005,8 @@ public final class MainActivity extends Activity implements ScheduleCanvasView.L
         super.onDestroy();
     }
 }
+
+
 
 
 

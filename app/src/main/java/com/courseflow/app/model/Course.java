@@ -66,8 +66,8 @@ public final class Course {
         course.teacher = object.optString("teacher", "");
         course.room = object.optString("room", "");
         course.day = clamp(object.optInt("day", 1), 1, 7);
-        course.startPeriod = clamp(object.optInt("start", 1), 1, 12);
-        course.endPeriod = clamp(object.optInt("end", course.startPeriod), course.startPeriod, 12);
+        course.startPeriod = clamp(object.optInt("start", 1), 1, 24);
+        course.endPeriod = clamp(object.optInt("end", course.startPeriod), course.startPeriod, 24);
         course.color = object.optInt("color", colorFor(course.name));
         JSONArray values = object.optJSONArray("weeks");
         if (values != null) {
@@ -127,3 +127,5 @@ public final class Course {
         return Math.max(min, Math.min(max, value));
     }
 }
+
+

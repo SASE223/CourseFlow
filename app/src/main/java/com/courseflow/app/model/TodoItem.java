@@ -37,8 +37,8 @@ public final class TodoItem {
         todo.note = object.optString("note", "");
         todo.week = clamp(object.optInt("week", 1), 1, 30);
         todo.day = clamp(object.optInt("day", 1), 1, 7);
-        todo.startPeriod = clamp(object.optInt("start", 1), 1, 12);
-        todo.endPeriod = clamp(object.optInt("end", todo.startPeriod), todo.startPeriod, 12);
+        todo.startPeriod = clamp(object.optInt("start", 1), 1, 24);
+        todo.endPeriod = clamp(object.optInt("end", todo.startPeriod), todo.startPeriod, 24);
         todo.completed = object.optBoolean("completed", false);
         todo.color = object.optInt("color", colorFor(todo.title));
         return todo;
@@ -53,3 +53,5 @@ public final class TodoItem {
         return Math.max(min, Math.min(max, value));
     }
 }
+
+
